@@ -1,0 +1,183 @@
+---
+title: "Data Manipulation"
+author: "Janish Parikh"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Clear the global environment 
+```{r, echo = F}
+rm(list = ls())
+```
+
+# Import Required Libraries
+```{r}
+library(lubridate) 
+```
+- Lubridate provides simple functions to get and set components of a date-time, such as year(), month(), mday(), hour(), minute() and second()
+```{r}
+library(RColorBrewer)
+```
+- Provides color palettes
+
+# Import Dataset
+```{r}
+citibike.May21.sample <- read.csv("~/Downloads/Datasets/citibike.May21.sample.csv")
+```
+
+Let's look at how to rename a dataframe to make it easy for us
+```{r}
+city <- citibike.May21.sample 
+rm(citibike.May21.sample)
+```
+
+Attaching the data frame so that we no longer need to refer every attribute by typing city$
+```{r}
+attach(city) 
+```
+
+Let's look at the names of the attributes/colnames
+```{r}
+names(city) 
+```
+
+Let's look at the shape of the data at hand
+```{r}
+dim(city) #no of columns and rows
+summary(city)
+head(city,10)
+str(city)
+```
+
+Let's take a deeper dive
+```{r}
+unique(rideable_type)
+```
+Since rideable_type is offering no information, we can say it's redundant in our dataset and can be removed
+
+Removing the unwanted columns from our dataset
+```{r}
+city<-city[,-3] 
+head(city,1)
+```
+
+```{r}
+class(started_at)
+```
+It's character so let's change that to timestamp type so that we can find the duration of the ride
+```{r}
+city$started_at<-as.POSIXct(started_at)
+city$ended_at<-as.POSIXct(ended_at)
+class(city$started_at)
+unclass(city$started_at) #See how it's actually stored inside, classes can be thought of as containers
+```
+```{r}
+detach(city)
+```
+```{r}
+city$duration <- as.integer(city$ended_at-city$started_at)
+head(city[,c(3,4,14)])
+```
+```{r}
+table(city$start_station_name)
+```
+```{r}
+table(city$end_station_name)
+dim(unique(city$start_station_name))-dim(unique(city$end_station_name))
+```
+```{r}
+table(cut(city$duration, breaks = 5))
+table(cut(city$duration, breaks = c(0,300,600,900,1800)))
+table(cut(city$duration, breaks = c(0,300,600,1800,max(city$duration, na.rm = T)), labels =c("Small","Medium", "Long","Very Long") ))
+```
+Let's add this levels category to our data frame
+```{r}
+city$duration_type<-cut(city$duration, breaks = c(0,300,600,1800,max(city$duration, na.rm = T)), labels =c("Small","Medium", "Long","Very Long"))
+cat("\014")
+head(city[,c(3,4,14,15)],1)
+```
+
+Let's plot the data
+```{r}
+barplot(table(city$duration_type), 
+        col = brewer.pal(4,"Dark2"), 
+        las =1, 
+        main="Barplot of Ride Durations", 
+        xlab = "Ride Type based on Duration", 
+        ylab = "Frequency of rides", 
+        legend.text= TRUE,
+        args.legend = c("Small:0-5 min", "Medium:5-10 min","Long:10-30 min", "Very Long>30 min"))
+```
+Let's explore the lubridate package further
+- Combining two columns
+- The y~x is used to say you plot y as a function of x
+- Divide the duration by 60 to convert sec to min
+- hour() converts date-time values in 'started_at' to hour 
+```{r}
+boxplot(city$duration/60 ~ hour(city$started_at), 
+        xlab = "Hour ride started", 
+        ylab = "Ride duration",
+        main = "Boxplot of Hour ride started v/s the ride duration",
+        ylim=c(0,100), 
+        las =1,
+        col = c(brewer.pal(8,"Dark2")))
+```
+
+Let's explore subset
+```{r}
+city_subset_time <- subset(city, select = c("started_at","ended_at","duration","duration_type"))
+head(city_subset_time)
+head(city[,c(3,4,14,15)]) #You can see that the same can be achieved by just slicing the indexes
+```
+
+```{r}
+city_subset_casual <- subset(city,member_casual=="casual")
+head(city_subset_casual)
+```
+
+The same results can also be obtained using this
+```{r}
+city_subset_casual1<- city[which(city$member_casual=="casual"),]
+head(city_subset_casual1)
+```
+
+As you can see both the results are the same
+
+Let's explore tapply, sapply, lapply, apply
+find average ride duration for each hour
+```{r}
+city_houravg<-tapply(city$duration,hour(city$started_at),mean)
+View(city_houravg)
+```
+
+Now let's see how data manipulation actually hepled us to gain actionable intelligence
+# (1) Ride Length by Day for Casual Riders
+```{r}
+boxplot((city_subset_casual$duration/60)~day(city_subset_casual$started_at),
+        las=2, 
+        xlab = "Day", 
+        ylab = "Duration (mins)", 
+        main="Ride Length by Day for Casual Riders",
+        ylim=c(0,100),
+        col = c(brewer.pal(11,"Spectral")))
+```
+
+# (2) Average Ride Length for each Hour
+```{r}
+barplot(city_houravg, main="Average Ride Length for each Hour", font.main=4, col.main="red", xlab="Hour", ylab="Average Ride length in seconds", col = brewer.pal(12,"Set3"))
+```
+
+# (3) Plot Ride Length by Rider Type
+```{r}
+mosaicplot(city$member_casual~city$duration_type, shade=F,xlab= "Rider Type", ylab = "Ride Type", col = brewer.pal(4,"Set1"), main="Ride Length Type per Rider Type")
+```
+
+# (4) scatter plot of latitudes and longitudes
+```{r}
+plot(city_subset_casual$end_lat, 
+     city_subset_casual$end_lng, 
+     col = c("orange","cyan"))
+```
